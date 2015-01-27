@@ -188,6 +188,7 @@ class Cursor(object):
                 captured_keys = [self.collection.name, 'ERROR']
 
             redis_conn.zincrby(self.collection.database.name, captured_keys, 1)
+            redis_conn.publish('airwoot', captured_keys)
 
     @property
     def collection(self):
