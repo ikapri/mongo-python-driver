@@ -41,6 +41,7 @@ import struct
 import threading
 import time
 import warnings
+import redis
 
 from bson.py3compat import b
 from pymongo import (auth,
@@ -85,8 +86,11 @@ class MongoClient(common.BaseObject):
     HOST = "localhost"
     PORT = 27017
 
+    REDIS_HOST = 'localhost'
+    REDIS_PORT = 6379
+
     def __init__(self, host=None, port=None, max_pool_size=100,
-                 document_class=dict, tz_aware=False, _connect=True,
+                 document_class=dict, tz_aware=False, _connect=True, redis_host=None, redis_port=None,
                  **kwargs):
         """Create a new connection to a single MongoDB instance at *host:port*.
 
@@ -234,9 +238,17 @@ class MongoClient(common.BaseObject):
             host = [host]
         if port is None:
             port = self.PORT
+        if redis_host is None:
+            redis_host = self.REDIS_HOST
+        if redis_port is None:
+            redis_port = self.REDIS_PORT
         if not isinstance(port, int):
             raise TypeError("port must be an instance of int")
-
+        self._redis_conn = redis.Redis(host=redis_host, port=redis_port)
+        try:
+            self._redis_conn.ping()
+        except redis.ConnectionError:
+            raise ConnectionFailure('Could not connect to the Redis host at  <%s:%s>' % (redis_host, redis_port))
         seeds = set()
         username = None
         password = None

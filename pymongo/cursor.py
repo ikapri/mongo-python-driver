@@ -178,6 +178,16 @@ class Cursor(object):
         # this is for passing network_timeout through if it's specified
         # need to use kwargs as None is a legit value for network_timeout
         self.__kwargs = kwargs
+        redis_conn = self.collection.database.connection._redis_conn
+
+        #Remove internal commands issued by the database as well as system profile commands.
+        if not self.collection.name in ('$cmd', 'system.profile'):
+            try:
+                captured_keys = self.capture_keys()
+            except:
+                captured_keys = [self.collection.name, 'ERROR']
+
+            redis_conn.zincrby(self.collection.database.name, captured_keys, 1)
 
     @property
     def collection(self):
@@ -282,6 +292,32 @@ class Cursor(object):
         garbage collection.
         """
         self.__die()
+
+    def capture_keys(self):
+        spec = self.__spec
+        return [self.collection.name] + sorted(self._capture_keys(spec))
+
+    def _capture_keys(self, spec):
+        '''
+            Returns all the column keys in query spec
+            If key has $or OR $and then the keys of the corresponding arrays are returned
+            TODO: Currently gives wrong results for complex queries like:
+                    db.inventory.find( {
+                         $and : [
+                            { $or : [ { price : 0.99 }, { price : 1.99 } ] },
+                            { $or : [ { sale : true }, { qty : { $lt : 20 } } ] }
+                                ]
+                        } )
+
+        '''
+        keys = []
+        for key, val in spec.iteritems():
+            if not key in ('$or', '$and'):
+                keys.append(key)
+            else:
+                for expression in val:
+                    keys.append(expression.keys()[0])
+        return keys
 
     def __query_spec(self):
         """Get the spec to use for a query.
