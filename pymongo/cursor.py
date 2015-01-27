@@ -296,7 +296,7 @@ class Cursor(object):
 
     def capture_keys(self):
         spec = self.__spec
-        return [self.collection.name] + sorted(self._capture_keys(spec))
+        return [self.collection.name] + sorted(set(self._capture_keys(spec)))
 
     def _capture_keys(self, spec):
         '''
@@ -314,7 +314,10 @@ class Cursor(object):
         keys = []
         for key, val in spec.iteritems():
             if not key in ('$or', '$and'):
-                keys.append(key)
+                if '.' in key:
+                    keys.append('.'.join([y for y in key.split('.') if not y.isdigit()])) # Remove array indexes if any
+                else:
+                    keys.append(key)
             else:
                 for expression in val:
                     keys.append(expression.keys()[0])
